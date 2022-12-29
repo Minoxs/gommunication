@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"gommunication"
+	"github.com/minoxs/gommunication"
 )
 
 func panicRecover(t *testing.T, name string) {
