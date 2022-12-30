@@ -7,6 +7,9 @@ import (
 	"reflect"
 )
 
+// Serialize will take any type and properly serialize pretty much anything.
+// Does not support anything with pointers because I'm lazy.
+// Also does not support structs inside structs for now.
 func Serialize[T any](buf io.Writer, data T) (err error) {
 	var face = reflect.ValueOf(data)
 
@@ -55,6 +58,8 @@ func Serialize[T any](buf io.Writer, data T) (err error) {
 	return nil
 }
 
+// Deserialize will, by definition, do the opposite of Serialize.
+// To see what is support at the moment check Serialize.
 func Deserialize[T any](buf io.Reader, data *T) (err error) {
 	var face = reflect.Indirect(reflect.ValueOf(data))
 
