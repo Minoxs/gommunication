@@ -96,27 +96,7 @@ func (m *Message[BodyType]) FromStream(buf io.Reader) (err error) {
 		}
 	}
 
-	var flag uint16
-	err = binary.Read(buf, endianness, &flag)
-	if err != nil {
-		return err
-	}
-	if flag != messageStart {
-		return errors.New(MissingSOM)
-	}
-
-	err = Deserialize[BodyType](buf, &m.Body)
-	if err != nil {
-		return
-	}
-
-	err = binary.Read(buf, endianness, &flag)
-	if err != nil {
-		return
-	}
-	if flag != messageEnd {
-		return errors.New(MissingEOM)
-	}
+	m.Body, err = ReadBody[BodyType](buf)
 
 	return
 }
@@ -128,12 +108,43 @@ func (m *Message[BodyType]) ToStream(buf io.Writer) (err error) {
 		return
 	}
 
+	return WriteBody[BodyType](buf, m.Body)
+}
+
+func ReadBody[BodyType any](buf io.Reader) (res BodyType, err error) {
+	var flag uint16
+	err = binary.Read(buf, endianness, &flag)
+	if err != nil {
+	}
+	if flag != messageStart {
+		err = errors.New(MissingSOM)
+		return
+	}
+
+	err = Deserialize[BodyType](buf, &res)
+	if err != nil {
+		return
+	}
+
+	err = binary.Read(buf, endianness, &flag)
+	if err != nil {
+		return
+	}
+	if flag != messageEnd {
+		err = errors.New(MissingEOM)
+		return
+	}
+
+	return
+}
+
+func WriteBody[BodyType any](buf io.Writer, body BodyType) (err error) {
 	err = binary.Write(buf, endianness, messageStart)
 	if err != nil {
 		return
 	}
 
-	err = Serialize[BodyType](buf, m.Body)
+	err = Serialize[BodyType](buf, body)
 	if err != nil {
 		return
 	}
