@@ -6,6 +6,8 @@ import (
 	"io"
 )
 
+// TODO ADD AUTOMATIC VERSIONING BASED ON STRUCT TAGS AND HEADER
+
 type (
 	// Header is a helper struct that is appended before any
 	// serialized data to add some additional information that
@@ -29,18 +31,25 @@ const (
 	headerStart = uint8(0xBB)
 	headerEnd   = uint8(0xCC)
 
-	// Missing start of header
-	MissingSOH = "not at the start of a header"
-	// Missing end of header
-	MissingEOH = "there are bytes left on the header"
-
 	messageStart = uint16(0xAAAA)
 	messageEnd   = uint16(0xFFFF)
+)
 
-	// Missing start of message
-	MissingSOM = "not at the start of a valid message"
-	// Missing end of message
-	MissingEOM = "there are bytes left on the message"
+var (
+	// MissingSOH is the error returned when reading a header and failing.
+	// Might mean more errors will popup if looking for more headers, but
+	// isn't the end of the world.
+	MissingSOH = errors.New("not at the start of a header")
+	// MissingEOH is the error returned when there are bytes left in the header.
+	// Unless you're doing something wrong, this should never happen.
+	MissingEOH = errors.New("there are bytes left on the header")
+
+	// MissingSOM is the error returned when failing to parse the start of a message.
+	// If this fails FlushMessage can be used, or try parsing headers until one is properly found.
+	MissingSOM = errors.New("not at the start of a valid message")
+	// MissingEOM is the error returned when a message wasn't fully parsed.
+	// It is possible to use FlushMessage to recover from this error. Can fail.
+	MissingEOM = errors.New("there are bytes left on the message")
 )
 
 var (
@@ -54,7 +63,7 @@ func (h *Header) FromStream(buf io.Reader) (err error) {
 		return
 	}
 	if flag != headerStart {
-		return errors.New(MissingSOH)
+		return MissingSOH
 	}
 
 	err = binary.Read(buf, endianness, h)
@@ -67,7 +76,7 @@ func (h *Header) FromStream(buf io.Reader) (err error) {
 		return
 	}
 	if flag != headerEnd {
-		return errors.New(MissingEOH)
+		return MissingEOH
 	}
 
 	return nil
@@ -117,7 +126,7 @@ func ReadBody[BodyType any](buf io.Reader) (res BodyType, err error) {
 	if err != nil {
 	}
 	if flag != messageStart {
-		err = errors.New(MissingSOM)
+		err = MissingSOM
 		return
 	}
 
@@ -131,7 +140,7 @@ func ReadBody[BodyType any](buf io.Reader) (res BodyType, err error) {
 		return
 	}
 	if flag != messageEnd {
-		err = errors.New(MissingEOM)
+		err = MissingEOM
 		return
 	}
 
@@ -150,4 +159,26 @@ func WriteBody[BodyType any](buf io.Writer, body BodyType) (err error) {
 	}
 
 	return binary.Write(buf, endianness, messageEnd)
+}
+
+// FlushMessage attemps to clean the reader.
+// Might not work even if no errors are returned.
+// Always be weary after any read fails.
+func FlushMessage(buf io.Reader) (err error) {
+	var countEOM = 0
+	for {
+		var buffer = make([]byte, 1)
+		_, err = buf.Read(buffer)
+		if err != nil {
+			return
+		}
+		if buffer[0] == 0xFF {
+			countEOM++
+		} else {
+			countEOM = 0
+		}
+		if countEOM == 2 {
+			return nil
+		}
+	}
 }
